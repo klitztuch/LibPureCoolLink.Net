@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Security.Authentication;
 using System.Threading.Tasks;
 using RestSharp;
+using RestSharp.Authenticators;
 using RestSharp.Serialization.Json;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -15,6 +17,9 @@ namespace LibPureCoolLink.Net.Model
         private readonly string _email;
         private readonly string _password;
         private readonly string _country;
+
+        public bool IsLoggedIn { get; set; }
+        public Authentication Authentication { get; set; }
 
         #region Ctor
 
@@ -32,7 +37,7 @@ namespace LibPureCoolLink.Net.Model
             _password = password ?? throw new ArgumentNullException(nameof(password));
             _country = country ?? throw new ArgumentNullException(nameof(country));
         }
-        
+
         #endregion
 
         #region Methods
@@ -50,8 +55,37 @@ namespace LibPureCoolLink.Net.Model
                 .AddJsonBody(JsonSerializer.Serialize(user));
 
             var response = client.Post<Authentication>(request);
+            if (response.StatusCode != HttpStatusCode.OK || response.Data == null)
+            {
+                return false;
+            }
 
-            return response.Data != null;
+            Authentication = response.Data;
+            IsLoggedIn = true;
+            return true;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="AuthenticationException"></exception>
+        public IEnumerable<IDevice> GetDevices()
+        {
+            if (!IsLoggedIn)
+            {
+                throw new AuthenticationException("User is not logged in.");
+            }
+
+            var requestApi = $"https://{_api}/v1/provisioningservice/manifest";
+            var client = new RestClient(requestApi)
+            {
+                Authenticator = new HttpBasicAuthenticator(Authentication.Account, Authentication.Password)
+            };
+            var request = new RestRequest();
+
+            var response = client.Get(request);
+            return new IDevice[0];
         }
 
         #endregion
